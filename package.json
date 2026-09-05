@@ -1,0 +1,15 @@
+{
+  "name": "youtube-simple-downloader",
+  "version": "1.0.0",
+  "description": "Minimal, cross-platform GUI to download YouTube videos and playlists as audio or video, powered by yt-dlp.",
+  "author": "Jvps",
+  "license": "MIT",
+  "scripts": {
+    "tauri": "tauri"
+  },
+  "keywords": ["tauri", "yt-dlp", "youtube", "downloader"],
+  "type": "commonjs",
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4"
+  }
+}

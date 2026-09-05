@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Youtube Simple Downloader</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <h1 class="brand">Youtube Simple Downloader</h1>
+        <button id="theme-toggle" class="icon-btn" title="Toggle theme" aria-label="Toggle theme">
+          <span id="theme-icon">&#9789;</span>
+        </button>
+      </header>
+
+      <div id="deps-warning" class="banner banner-warn" hidden></div>
+
+      <main>
+        <label class="field">
+          <span class="field-label">URL</span>
+          <input id="url" type="text" placeholder="Paste a video or playlist link" autocomplete="off" />
+        </label>
+
+        <div class="segmented" id="media-type" role="tablist">
+          <button class="seg-btn active" data-value="audio" type="button">Audio</button>
+          <button class="seg-btn" data-value="video" type="button">Video</button>
+        </div>
+
+        <div id="audio-options" class="options-row">
+          <label class="field">
+            <span class="field-label">Format</span>
+            <select id="audio-format">
+              <option value="mp3">MP3</option>
+              <option value="m4a">M4A</option>
+              <option value="opus">Opus</option>
+              <option value="flac">FLAC</option>
+              <option value="wav">WAV</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-label">Quality</span>
+            <select id="audio-quality">
+              <option value="0">Best</option>
+              <option value="5">Medium</option>
+              <option value="9">Low</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="video-options" class="options-row" hidden>
+          <label class="field">
+            <span class="field-label">Quality</span>
+            <select id="video-quality">
+              <option value="best">Best</option>
+              <option value="1080">1080p</option>
+              <option value="720">720p</option>
+              <option value="480">480p</option>
+              <option value="360">360p</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-label">Container</span>
+            <select id="video-container">
+              <option value="mp4">MP4</option>
+              <option value="mkv">MKV</option>
+              <option value="webm">WebM</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="field">
+          <span class="field-label">Output folder</span>
+          <div class="folder-row">
+            <input id="output-dir" type="text" readonly placeholder="Choose a folder..." />
+            <button id="browse-btn" class="icon-btn" type="button" title="Browse" aria-label="Browse folder">&#128193;</button>
+          </div>
+        </label>
+
+        <label class="checkbox-field" id="playlist-field" hidden>
+          <input type="checkbox" id="playlist-checkbox" checked />
+          <span>Download entire playlist</span>
+        </label>
+
+        <button id="download-btn" class="primary-btn" type="button">Download</button>
+
+        <div id="progress-area" class="progress-area" hidden>
+          <div class="progress-title" id="progress-title">Starting...</div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="progress-bar-fill"></div>
+          </div>
+          <div class="progress-meta">
+            <span id="progress-speed"></span>
+            <span id="progress-eta"></span>
+          </div>
+        </div>
+
+        <div id="status-msg" class="status-msg" hidden></div>
+
+        <details id="log-details" class="log-details" hidden>
+          <summary>Details</summary>
+          <pre id="log-box" class="log-box"></pre>
+        </details>
+      </main>
+
+      <footer class="footer">
+        <span class="author">by <strong>Jvps</strong></span>
+      </footer>
+    </div>
+
+    <script src="main.js"></script>
+  </body>
+</html>
