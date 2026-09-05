@@ -209,6 +209,14 @@ fn handle_line(app: &AppHandle, line: &str) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Work around a WebKitGTK "Failed to create GBM buffer" gray-screen bug that
+    // shows up on some Mesa/driver combinations, especially in AppImage builds
+    // that bundle their own WebKitGTK. Must be set before the webview inits.
+    #[cfg(target_os = "linux")]
+    unsafe {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
