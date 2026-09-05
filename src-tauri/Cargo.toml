@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "1.0.0"
+version = "1.1.0"
 description = "Minimal GUI for downloading YouTube videos/playlists as audio or video, powered by yt-dlp."
 authors = ["Jvps"]
 license = "MIT"
@@ -24,4 +24,5 @@ log = "0.4"
 tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
 tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
 tokio = { version = "1", features = ["sync"] }

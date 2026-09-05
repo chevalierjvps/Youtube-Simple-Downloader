@@ -1,9 +1,25 @@
 use serde::Serialize;
 use std::io::{BufRead, BufReader};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::thread;
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_shell::process::CommandEvent;
+use tauri_plugin_shell::ShellExt;
+
+/// Directory the running executable lives in. On Windows this is where
+/// bundled sidecar binaries (yt-dlp.exe, ffmpeg.exe) are placed alongside
+/// the app, so the app is fully self-contained with no PATH dependencies.
+fn exe_dir() -> Option<PathBuf> {
+    std::env::current_exe().ok()?.parent().map(PathBuf::from)
+}
+
+fn sidecar_file(name: &str) -> Option<PathBuf> {
+    let mut p = exe_dir()?;
+    p.push(format!("{name}.exe"));
+    Some(p)
+}
 
 #[derive(Clone, Serialize)]
 struct ProgressPayload {
@@ -24,6 +40,14 @@ struct FinishedPayload {
 
 #[tauri::command]
 fn check_dependencies() -> serde_json::Value {
+    // On Windows, yt-dlp and ffmpeg are bundled as sidecar binaries next to
+    // the app executable, so the app never depends on the user's PATH.
+    if cfg!(windows) {
+        let ytdlp = sidecar_file("yt-dlp").is_some_and(|p| p.is_file());
+        let ffmpeg = sidecar_file("ffmpeg").is_some_and(|p| p.is_file());
+        return serde_json::json!({ "ytdlp": ytdlp, "ffmpeg": ffmpeg });
+    }
+
     let ytdlp = Command::new("yt-dlp").arg("--version").output().is_ok();
     let ffmpeg = Command::new("ffmpeg").arg("-version").output().is_ok();
     serde_json::json!({ "ytdlp": ytdlp, "ffmpeg": ffmpeg })
@@ -111,59 +135,152 @@ fn start_download(
         };
         args.push("-o".into());
         args.push(outtmpl);
+
+        // Bundled ffmpeg on Windows lives next to the app exe, not on PATH,
+        // so yt-dlp needs to be told explicitly where to find it.
+        if cfg!(windows) {
+            if let Some(dir) = exe_dir() {
+                args.push("--ffmpeg-location".into());
+                args.push(dir.to_string_lossy().into_owned());
+            }
+        }
+
         args.push(url);
 
-        let mut child = match Command::new("yt-dlp")
-            .args(&args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-        {
-            Ok(c) => c,
-            Err(e) => {
-                let _ = app.emit("ytdl://log", format!("Failed to start yt-dlp: {e}"));
-                let _ = app.emit(
-                    "ytdl://finished",
-                    FinishedPayload {
-                        success: false,
-                        code: None,
-                    },
-                );
-                return;
-            }
-        };
-
-        let stdout = child.stdout.take().unwrap();
-        let stderr = child.stderr.take().unwrap();
-
-        let app_stdout = app.clone();
-        let stdout_thread = thread::spawn(move || {
-            let reader = BufReader::new(stdout);
-            for line in reader.lines().map_while(Result::ok) {
-                handle_line(&app_stdout, &line);
-            }
-        });
-
-        let app_stderr = app.clone();
-        let stderr_thread = thread::spawn(move || {
-            let reader = BufReader::new(stderr);
-            for line in reader.lines().map_while(Result::ok) {
-                if !line.trim().is_empty() {
-                    let _ = app_stderr.emit("ytdl://log", line);
-                }
-            }
-        });
-
-        let status = child.wait();
-        let _ = stdout_thread.join();
-        let _ = stderr_thread.join();
-
-        let (success, code) = match status {
-            Ok(s) => (s.success(), s.code()),
-            Err(_) => (false, None),
-        };
-        let _ = app.emit("ytdl://finished", FinishedPayload { success, code });
+        if cfg!(windows) {
+            run_via_sidecar(&app, &args);
+        } else {
+            run_via_path(&app, &args);
+        }
     });
+}
+
+/// Runs yt-dlp resolved from PATH (Linux/macOS), matching pre-existing behavior.
+fn run_via_path(app: &AppHandle, args: &[String]) {
+    let mut child = match Command::new("yt-dlp")
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            let _ = app.emit("ytdl://log", format!("Failed to start yt-dlp: {e}"));
+            let _ = app.emit(
+                "ytdl://finished",
+                FinishedPayload {
+                    success: false,
+                    code: None,
+                },
+            );
+            return;
+        }
+    };
+
+    let stdout = child.stdout.take().unwrap();
+    let stderr = child.stderr.take().unwrap();
+
+    let app_stdout = app.clone();
+    let stdout_thread = thread::spawn(move || {
+        let reader = BufReader::new(stdout);
+        for line in reader.lines().map_while(Result::ok) {
+            handle_line(&app_stdout, &line);
+        }
+    });
+
+    let app_stderr = app.clone();
+    let stderr_thread = thread::spawn(move || {
+        let reader = BufReader::new(stderr);
+        for line in reader.lines().map_while(Result::ok) {
+            if !line.trim().is_empty() {
+                let _ = app_stderr.emit("ytdl://log", line);
+            }
+        }
+    });
+
+    let status = child.wait();
+    let _ = stdout_thread.join();
+    let _ = stderr_thread.join();
+
+    let (success, code) = match status {
+        Ok(s) => (s.success(), s.code()),
+        Err(_) => (false, None),
+    };
+    let _ = app.emit("ytdl://finished", FinishedPayload { success, code });
+}
+
+/// Runs yt-dlp bundled as a sidecar binary (Windows), so no PATH dependency
+/// is needed at all.
+fn run_via_sidecar(app: &AppHandle, args: &[String]) {
+    let command = match app.shell().sidecar("yt-dlp") {
+        Ok(c) => c,
+        Err(e) => {
+            let _ = app.emit(
+                "ytdl://log",
+                format!("Failed to locate bundled yt-dlp: {e}"),
+            );
+            let _ = app.emit(
+                "ytdl://finished",
+                FinishedPayload {
+                    success: false,
+                    code: None,
+                },
+            );
+            return;
+        }
+    };
+
+    let (mut rx, _child) = match command.args(args).spawn() {
+        Ok(pair) => pair,
+        Err(e) => {
+            let _ = app.emit("ytdl://log", format!("Failed to start yt-dlp: {e}"));
+            let _ = app.emit(
+                "ytdl://finished",
+                FinishedPayload {
+                    success: false,
+                    code: None,
+                },
+            );
+            return;
+        }
+    };
+
+    let mut finished_code: Option<i32> = None;
+    let mut finished_success = false;
+
+    tauri::async_runtime::block_on(async {
+        while let Some(event) = rx.recv().await {
+            match event {
+                CommandEvent::Stdout(bytes) => {
+                    let line = String::from_utf8_lossy(&bytes);
+                    handle_line(app, line.trim_end());
+                }
+                CommandEvent::Stderr(bytes) => {
+                    let line = String::from_utf8_lossy(&bytes);
+                    let line = line.trim_end();
+                    if !line.is_empty() {
+                        let _ = app.emit("ytdl://log", line.to_string());
+                    }
+                }
+                CommandEvent::Error(err) => {
+                    let _ = app.emit("ytdl://log", format!("yt-dlp error: {err}"));
+                }
+                CommandEvent::Terminated(payload) => {
+                    finished_code = payload.code;
+                    finished_success = payload.code == Some(0);
+                }
+                _ => {}
+            }
+        }
+    });
+
+    let _ = app.emit(
+        "ytdl://finished",
+        FinishedPayload {
+            success: finished_success,
+            code: finished_code,
+        },
+    );
 }
 
 fn handle_line(app: &AppHandle, line: &str) {
@@ -219,6 +336,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(

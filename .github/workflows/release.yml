@@ -39,6 +39,28 @@ jobs:
       - name: Install npm dependencies
         run: npm install
 
+      - name: Download bundled Windows dependencies (yt-dlp, ffmpeg)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path src-tauri/binaries | Out-Null
+
+          # Official yt-dlp standalone Windows build (no Python required).
+          Invoke-WebRequest `
+            -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" `
+            -OutFile "src-tauri/binaries/yt-dlp-x86_64-pc-windows-msvc.exe"
+
+          # Community-trusted static ffmpeg builds, widely used in CI (BtbN/FFmpeg-Builds).
+          Invoke-WebRequest `
+            -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" `
+            -OutFile "ffmpeg.zip"
+          Expand-Archive -Path "ffmpeg.zip" -DestinationPath "ffmpeg-extracted"
+          $ffmpegExe = Get-ChildItem -Path "ffmpeg-extracted" -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
+          Copy-Item $ffmpegExe.FullName "src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe"
+          Remove-Item "ffmpeg.zip" -Force
+          Remove-Item "ffmpeg-extracted" -Recurse -Force
+
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -49,6 +71,7 @@ jobs:
           releaseBody: |
             Portable executable and installer for Windows and Linux.
 
-            Requires `yt-dlp` and `ffmpeg` on your PATH — see the README for install instructions.
+            - Windows: yt-dlp and ffmpeg are bundled — no extra install needed.
+            - Linux: requires `yt-dlp` and `ffmpeg` on your PATH — see the README for install instructions.
           releaseDraft: true
           prerelease: false

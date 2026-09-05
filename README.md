@@ -36,15 +36,18 @@
 
 ## Requirements (to run)
 
-The app itself is a small native binary, but it shells out to `yt-dlp` for
-the actual downloading, so both of these need to be installed and on your
-`PATH`:
+The app shells out to `yt-dlp` (which in turn uses `ffmpeg`) for the actual
+downloading.
 
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp)
-- [ffmpeg](https://ffmpeg.org/download.html)
+- 🪟 **Windows:** nothing to install — the installer and portable build both
+  bundle `yt-dlp.exe` and `ffmpeg.exe` alongside the app, so it works out of
+  the box with no PATH setup.
+- 🐧 **Linux:** both need to be installed and on your `PATH`:
+  - [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+  - [ffmpeg](https://ffmpeg.org/download.html)
 
-If either is missing, the app shows a warning banner on startup with
-instructions.
+  If either is missing, the app shows a warning banner on startup with
+  instructions.
 
 ## Download
 
@@ -52,8 +55,8 @@ Grab the latest build from the [**Releases**](https://github.com/chevalierjvps/Y
 
 | Platform | Portable | Installer |
 | --- | --- | --- |
-| 🪟 Windows | `*_x64-setup.exe` runs standalone, no install needed | `*_x64_en-US.msi` |
-| 🐧 Linux | `*.AppImage` — `chmod +x`, then run | `*.deb` / `*.rpm` |
+| 🪟 Windows | `*_x64-setup.exe` runs standalone, no install needed, deps bundled | `*_x64_en-US.msi`, deps bundled |
+| 🐧 Linux | `*.AppImage` — `chmod +x`, then run (needs yt-dlp/ffmpeg on PATH) | `*.deb` / `*.rpm` (needs yt-dlp/ffmpeg on PATH) |
 
 ## Building from source
 
@@ -75,6 +78,24 @@ package(s) for whichever OS you build on. Pushing a `v*.*.*` tag triggers
 [`.github/workflows/release.yml`](.github/workflows/release.yml), which
 builds both Windows and Linux packages in CI and attaches them to a GitHub
 release automatically.
+
+**Building for Windows locally:** the Windows build bundles `yt-dlp` and
+`ffmpeg` as [sidecar binaries](https://v2.tauri.app/develop/sidecar/), which
+must exist before `tauri build`/`tauri dev` runs:
+
+```
+src-tauri/binaries/yt-dlp-x86_64-pc-windows-msvc.exe
+src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
+```
+
+Grab `yt-dlp.exe` from the
+[yt-dlp releases](https://github.com/yt-dlp/yt-dlp/releases/latest) and
+`ffmpeg.exe` from a static Windows build (e.g.
+[BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds/releases/tag/latest)),
+rename them to match the filenames above, and place them in
+`src-tauri/binaries/`. CI does this automatically — see the release
+workflow. This step only applies when building on/for Windows; Linux builds
+are unaffected.
 
 ## How it works
 

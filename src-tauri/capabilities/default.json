@@ -7,6 +7,13 @@
   ],
   "permissions": [
     "core:default",
-    "dialog:default"
+    "dialog:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        { "name": "yt-dlp", "sidecar": true, "args": true },
+        { "name": "ffmpeg", "sidecar": true, "args": true }
+      ]
+    }
   ]
 }
